@@ -4,7 +4,7 @@ require "RMagick"
 require "nokogiri"
 require "logger"
 
-class ArtDownloaderd
+class ArtDownloader
 
   class RuntimeError < StandardError; end
 
