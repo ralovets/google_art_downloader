@@ -1,14 +1,15 @@
 require "rubygems"
 require "open-uri"
 require "RMagick"
-require 'nokogiri'
-require 'logger'
+require "nokogiri"
+require "logger"
 
-class ArtDownloader
+class ArtDownloaderd
 
   class RuntimeError < StandardError; end
 
   DESIRED_ZOOM = 2
+
   TILES_FOLDER = "tiles/"
   TILES_INFO_FOLDER = "tiles_info/"
   RESULT_FOLDER = "result/"
@@ -23,11 +24,8 @@ class ArtDownloader
     Dir.mkdir(LOG_FOLDER) unless Dir.exist?(LOG_FOLDER)
     Dir.mkdir(SUMMARY_FOLDER) unless Dir.exist?(SUMMARY_FOLDER)
     Dir.mkdir(RESULT_FOLDER) unless Dir.exist?(RESULT_FOLDER)
-
     @log = Logger.new(log_path)
     @log.level = Logger::INFO
-
-
   end
 
   def download(url)
@@ -40,9 +38,7 @@ class ArtDownloader
   def download_by_id(id)
     @iid = id
     downloading
-
   end
-
 
   def get_artworks_urls
     google_url = "http://www.googleartproject.com"
@@ -51,17 +47,14 @@ class ArtDownloader
   	rescue
   		error "URL is unavailable"
     end
-
     artworks = Nokogiri::XML::Builder.new do |xml|
       xml.googleartproject {
         xml.museums {
         }
       }
     end
-
     f = File.open(summary_path, "wb") { |f| f.print artworks.to_xml }
     f = File.open(summary_path)
-
     artdoc = Nokogiri::XML(f)
     mdoc = Nokogiri::HTML(html)
     museums = mdoc.xpath("//li/@data-museum-url")
@@ -72,13 +65,11 @@ class ArtDownloader
       root_museums = artdoc.at_css("museums")
       m = Nokogiri::XML::Node.new("museum", artdoc)
       m["museum_url"] = museum_url
-
       begin
         workshtml = open(museum_url)
   	  rescue
   		  error "URL is unavailable"
       end
-
       wdoc = Nokogiri::HTML(workshtml)
       li = wdoc.xpath("//div[@class='content sortable thumbnail-list']/ul/li")
       li.each {|l|
@@ -86,22 +77,17 @@ class ArtDownloader
                   "art_url" => (google_url + l.xpath("a/@href").to_s),
                   "name" => l.xpath("a/strong").first.content,
                   "artist" => l.xpath("a/span").first.content}
-
         aw = Nokogiri::XML::Node.new("artwork", m)
         params.each_pair do |k, v|
           val = Nokogiri::XML::Node.new(k, aw)
           val.content = v
           aw.add_child(val)
         end
-
         m.add_child(aw)
       }
       root_museums.add_child(m)
-#      puts root_museums.to_xml
     }
-
     File.open(summary_path,'wb') {|f| artdoc.write_xml_to f}
-
     @log.info("Created #{summary_path}")
     puts "Created #{summary_path}"
   end
@@ -110,7 +96,6 @@ class ArtDownloader
     unless File.exists?(summary_path)
       get_artworks_urls
     end
-
     f = File.open(summary_path)
     doc = Nokogiri::XML(f)
     thumbs = doc.xpath("//data_thumbnail").children
@@ -130,42 +115,24 @@ class ArtDownloader
         puts "Interrupted"
         break
       end
-
-#      if i > 50
-#        break
-#      end
     }
-
-#    download_by_id("Tn4SWSgMAw-91knyN5m-xmcMqacglEDxYxz7VyGfIRS01JFcJAn5G6w-NgcrZA")
-#    download_by_id("BunluXeHB2dK5XCgNpnSsVlYj3pOSJQDnPxQyYcCrgNLxEh3oRTqrSnir1Zy-g")
   end
 
 private
 
   def downloading
-
     get_tile_info
-
     @log.info("Start #{full_path}")
     puts "Start #{full_path}"
-
     if File.exists?(full_path)
       @log.warn("Already exists")
       puts "Already exists"
       return
     end
-
     get_tiles
     stitch_tiles
     delete_tiles
-#    puts "Created #{full_path}"
   end
-
-#  def ensure_image_magick!
-#    if `which montage`.empty?
-#      error "You must have ImageMagick installed. Could not find 'montage' in your PATH"
-#    end
-#  end
 
   def verify_url!
   	unless @url =~ /\A(http:\/\/www\.googleartproject\.com\/museums)\/([a-z]+)\/([a-z\d\-%])+\z/i
@@ -179,10 +146,8 @@ private
   	rescue
   		error "URL is unavailable"
     end
-
     doc = Nokogiri::HTML(@html)
     @iid = doc.xpath("/html/body/@data-thumbnail").to_s
-
     unless @iid
       error "Couldn't find an image at the page"
     end
@@ -193,8 +158,8 @@ private
     f = File.open(tile_info_path)
     doc = Nokogiri::XML(f)
 
-    # Unfortunately some info-xml contains wrong full_pyramid_depth
-#    @full_pyramid_depth = doc.xpath("/TileInfo/@full_pyramid_depth").to_s.to_i
+    # Unfortunately some xml prodived by googleartproject
+    # contains wrong full_pyramid_depth ;)
 		@full_pyramid_depth = doc.xpath("//pyramid_level").size
     @zoom = [DESIRED_ZOOM, @full_pyramid_depth - 1].min
     @tile_width = doc.xpath("/TileInfo/@tile_width").to_s.to_i
@@ -216,34 +181,18 @@ private
     @evaluable_height = @num_tiles_y * @tile_height - @empty_pels_y
     @maximum_width = @maximum_num_tiles_x * @tile_width - @maximum_empty_pels_x
     @maximum_height = @maximum_num_tiles_y * @tile_height - @maximum_empty_pels_y
-#		puts_totals
     f.close
   end
 
-#  def puts_totals
-#    puts "Zoom: #{@zoom}"
-#    puts "Evaluable image resolution: #{@evaluable_width} x #{@evaluable_height}"
-#    puts "Maximum zoom: #{@full_pyramid_depth - 1}"
-#    puts "Maximum image resolution: #{@maximum_width} x #{@maximum_height}"
-#  end
-
   def get_file(url, path)
     begin
-#    	puts "Getting #{url}"
-
       if File.exist?(path)
         return 0
-#       raise "#{path} already exists"
       end
-
       data = open(url)
-
       File.open(path, "wb") { |f| f.print data.read }
-#      puts "Successfully downloaded #{path}"
-
       return File.size(path)
     rescue StandardError => e
-#      @log.warn($!, "Warning: #{e.message}")
       puts $!, "Warning: #{e.message}"
       return 0
     end
@@ -254,42 +203,31 @@ private
     tiles_size = 0
     tiles_count = @num_tiles_x * @num_tiles_y
     print "Tiles count: #{tiles_count} "
-
     for y in 0...@num_tiles_y
       for x in 0...@num_tiles_x
         current_tile_number = x + y * @num_tiles_x + 1
-#        puts "Download #{current_tile_number} of #{tiles_count}"
         print "."
         url = tile_url(x, y)
         tile_size = get_file(url, tile_path(x, y))
         if tile_size > 0
           tiles_size += tile_size
-#        puts "Have downloaded #{tiles_size / 1024} kb"
         end
-
-#        puts "#{(current_tile_number.to_f / tiles_count.to_f * 100).round(0)}% complete"
-#        puts "......."
       end
     end
     puts
-
     time = Time.now - a
-
     dspeed = (tiles_size.to_f / 1024.to_f / time).round(0)
     dsize = (tiles_size.to_f / 1024.to_f).round(0)
     @log.info("Download size #{dsize} kb")
     @log.info("Download speed #{time} kb/s")
     @log.info("Download time #{time} s")
-
     puts "Download size #{dsize} kb"
     puts "Download speed #{dspeed} kb/s"
     puts "Download time #{time} s"
-
   end
 
   def stitch_tiles
   	a = Time.now
-
     tiles = []
     for y in 0...@num_tiles_y
       for x in 0...@num_tiles_x
@@ -299,15 +237,13 @@ private
     ilist = Magick::ImageList.new(*tiles)
     num_x = @num_tiles_x
     num_y = @num_tiles_y
-#    @log.info("Joining")
-#    puts "Joining"
+
+#   Joining images
     montage = ilist.montage do
-#      puts "#{num_x} , #{num_y}"
       self.geometry = Magick::Geometry.new(512, 512, 0, 0)
       self.tile = Magick::Geometry.new(num_x, num_y)
     end
     cropped = montage.crop(0, 0, @evaluable_width, @evaluable_height, true)
-
     cropped.write(full_path) { self.quality = 95 }
     time = Time.now - a
     @log.info("Joining time #{time} s")
@@ -316,16 +252,12 @@ private
     puts "Result file size #{(File.size(full_path).to_f / 1024.to_f).round(0)} kb"
   end
 
-
   def delete_tiles
-#    @log.info("Deleting tiles")
-#    puts "Deleting tiles"
     for y in 0...@num_tiles_y
       for x in 0...@num_tiles_x
         File.delete(tile_path(x, y))
       end
     end
-#    File.delete(tile_info_path)
   end
 
   def error(message)
@@ -338,7 +270,6 @@ private
   end
 
   def tile_info_url
-    # The subdomain can seemingly be anything from lh3 to lh6.
     "http://lh5.ggpht.com/#{@iid}=g"
   end
 
@@ -361,45 +292,11 @@ private
   def log_path
     LOG_FOLDER + LOG_FILENAME
   end
-
-
 end
-
-
-
-
 
 if __FILE__ == $0
   ArtDownloader.new.get_all_artworks
-  #ArtDownloader.new.get_artworks_urls
-
-#  urls = ARGV.any? ? ARGV : (defined?(DATA) ? DATA.read.strip.split("\n")  : [])
-#  puts "Error: No URLs given!" if urls.empty?
-#
-#  urls.each do |url|
-#    begin
-#      ArtDownloader.new(url).download
-#    rescue ArtDownloader::RuntimeError => e
-#      puts "Error: #{e.message}"
-#    end
-#  end
-
-
-
 end
 
-#http://www.googleartproject.com/museums/tretyakov/the-apparition-of-christ-to-the-people-the-apparition-of-the-messiah
-#http://www.googleartproject.com/museums/tate/no-woman-no-cry
-#http://www.googleartproject.com/museums/tate/the-cholmondeley-ladies-180
-#http://www.googleartproject.com/museums/tretyakov/blessed-be-the-host-of-the-king-of-heaven%E2%80%A6-46
-#http://www.googleartproject.com/museums/tretyakov/the-apparition-of-christ-to-the-people-the-apparition-of-the-messiah
-#http://www.googleartproject.com/museums/vangogh/the-langlois-bridge-18
-#http://www.googleartproject.com/museums/frick/salisbury-cathedral-from-the-bishops-garden-14
-#http://www.googleartproject.com/museums/tretyakov/portrait-of-catherine-ii-empress-of-russia-in-the-park-119
-#http://www.googleartproject.com/museums/hermitage/aphrodite-venus-of-taurida-121001
-#http://www.googleartproject.com/museums/moma/the-sleeping-gypsy-24
-
 __END__
-
-http://www.googleartproject.com/museums/tate/a-foregone-conclusion-226
 
