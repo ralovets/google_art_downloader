@@ -65,6 +65,10 @@ class ArtDownloader
       root_museums = artdoc.at_css("museums")
       m = Nokogiri::XML::Node.new("museum", artdoc)
       m["museum_url"] = museum_url
+      mli = mdoc.xpath("//div[@class='clip']/ul/li[@data-museum-url='#{museum.to_s}']")
+      m["museum_name"] = mli.xpath("@data-bg-museum").to_s
+      m["city"] = mli.xpath("a/span").first.content.to_s
+      m["abbreviation"] = museum.to_s[/\/(\w+)\z/, 1] 
       begin
         workshtml = open(museum_url)
   	  rescue
@@ -295,7 +299,7 @@ private
 end
 
 if __FILE__ == $0
-  ArtDownloader.new.get_all_artworks
+  ArtDownloader.new.get_artworks_urls
 end
 
 __END__
